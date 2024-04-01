@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Data Visualisation Exercise 2.4" />
+    <meta name="keywords" content="HTML, CSS" />
+    <meta name="author" content="Your name here" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+
+<body>
+    <h1>Migration Visualization</h1>
+
+    <div id="demographic"></div>
+
+    <script>
+        var w = 1000;
+        var h = 500;
+        var padding = 50;
+        var dmgcountries = ["AFG", "DZA", "BGD", "ISL", "PAK", "PHL"];
+
+        // Create the SVG container and set its width and height.
+        var svg = d3.select("#demographic")
+            .append("svg")
+            .attr("width", w)
+            .attr("height", h);
+
+        function dataCheck(dataset, filter) {
+            return dataset.filter(filter);
+        }
+
+        // Load in the data from a CSV file, then draw the graph.
+        function init() {
+            d3.csv("/climate/data/MIG_22032024032938139.csv", function (d) {
+                return {
+                    year: +d.Year,
+                    countryOut: d.CO2,
+                    countryIn: d.COU,
+                    value: +d.Value,
+                    variable: d.VAR
+                };
+            })
+                .then(function (data) {
+                    var dataset = dataCheck(data, function (d) {
+                        return dmgcountries.includes(d.countryOut) && d.variable === 'B11';
+                    });
+
+                    var aggregatedData = {};
+
+                    dataset.forEach(function (d) {
+                        if (!aggregatedData[d.countryOut]) {
+                            aggregatedData[d.countryOut] = {};
+                        }
+                        if (!aggregatedData[d.countryOut][d.year]) {
+                            aggregatedData[d.countryOut][d.year] = 0;
+                        }
+                        aggregatedData[d.countryOut][d.year] += d.value;
+                    });
+
+                    var processedData = [];
+                    Object.keys(aggregatedData).forEach(function (country) {
+                        Object.keys(aggregatedData[country]).forEach(function (year) {
+                            processedData.push({ country: country, year: +year, value: aggregatedData[country][year] });
+                        });
+                    });
+                    console.log(processedData);
+                    draw(processedData);
+                });
+        };
+
+        function draw(dataset) {
+            var xScale = d3.scaleLinear()
+                .domain([2000, 2012])
+                .range([padding, w - padding]);
+
+            var yScale = d3.scaleLinear()
+                .domain([0, d3.max(dataset, function (d) { return d.value; })])
+                .range([h - padding, padding]);
+
+            var colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+            var line = d3.line()
+                .x(function (d) { return xScale(d.year); })
+                .y(function (d) { return yScale(d.value); });
+
+            var xAxis = d3.axisBottom()
+                .scale(xScale)
+                .tickFormat(d3.format("d"));
+
+            var yAxis = d3.axisLeft()
+                .scale(yScale);
+
+            svg.append("g")
+                .attr("transform", "translate(0," + (h - padding) + ")")
+                .call(xAxis);
+
+            svg.append("g")
+                .attr("transform", "translate(" + padding + ",0)")
+                .call(yAxis);
+
+            // Add lines to the graphic for each country in the dataset
+            dmgcountries.forEach(function (country, i) {
+                var countryData = dataset.filter(function (d) { return d.country === country; });
+                svg.append("path")
+                    .datum(countryData)
+                    .attr("fill", "none")
+                    .attr("stroke", colorScale(i))
+                    .attr("stroke-width", 2)
+                    .attr("d", line);
+            });
+            // Add legend
+            var legend = svg.append("g")
+                .attr("class", "legend")
+                .attr("transform", "translate(20," + (h - 30) + ")");
+
+            legend.selectAll("rect")
+                .data(dmgcountries)
+                .enter()
+                .append("rect")
+                .attr("x", function (d, i) { return i * 100; })
+                .attr("y", 0)
+                .attr("width", 10)
+                .attr("height", 10)
+                .style("fill", function (d, i) { return colorScale(i); });
+
+            legend.selectAll("text")
+                .data(dmgcountries)
+                .enter()
+                .append("text")
+                .attr("x", function (d, i) { return i * 100 + 15; })
+                .attr("y", 10)
+                .text(function (d) { return d; })
+                .attr("dy", "0.7em")
+                .style("font-size", "10px");
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

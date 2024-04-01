@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Data Visualization Exercise 2.4" />
+    <meta name="keywords" content="HTML, CSS" />
+    <meta name="author" content="Your name here" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+
+<body>
+    <h1>Temperature Visualization</h1>
+    <div id="climate"></div>
+
+    <script>
+        var w = 1000;
+        var h = 500;
+        var padding = 50;
+        var climcountries = ["Afghanistan", "Algeria", "Bangladesh", "Iceland", "Pakistan", "Philippines"];
+
+        // Create the SVG container and set its width and height.
+        var svg = d3.select("#climate")
+            .append("svg")
+            .attr("width", w)
+            .attr("height", h);
+
+        function dataCheck(dataset, filter) {
+            return dataset.filter(filter);
+        }
+
+        // Load in the data from a CSV file, then draw the graph.
+        function init() {
+            d3.csv("/climate/data/GlobalLandTemperaturesByCountry.csv", function (d) {
+                return {
+                    dt: new Date(d.dt),
+                    avgTemp: +d.AverageTemperature,
+                    avgTempUncert: +d.AverageTemperatureUncertainty,
+                    Country: d.Country
+                };
+            })
+                .then(function (data) {
+                    var datasetCountry = dataCheck(data, function (d) {
+                        return climcountries.includes(d.Country);
+                    });
+
+                    var yearlyAvgTemps = {};
+
+                    datasetCountry.forEach(function (d) {
+                        var year = d.dt.getFullYear();
+                        if (!yearlyAvgTemps[year]) {
+                            yearlyAvgTemps[year] = {};
+                        }
+                        if (!yearlyAvgTemps[year][d.Country]) {
+                            yearlyAvgTemps[year][d.Country] = [];
+                        }
+                        yearlyAvgTemps[year][d.Country].push(d.avgTemp);
+                    });
+
+                    var dataset = [];
+                    Object.keys(yearlyAvgTemps).forEach(function (year) {
+                        var avgTempByCountry = yearlyAvgTemps[year];
+                        Object.keys(avgTempByCountry).forEach(function (country) {
+                            var avgTemp = d3.mean(avgTempByCountry[country]);
+                            dataset.push({ year: +year, Country: country, avgTemp: avgTemp });
+                        });
+                    });
+                    console.log(dataset);
+                    draw(dataset);
+                });
+        }
+
+        function draw(dataset) {
+            var xScale = d3.scaleLinear()
+                .domain([2000, 2012])
+                .range([padding, w - padding]);
+
+            var yScale = d3.scaleLinear()
+                .domain([d3.min(dataset, function (d) { return d.avgTemp; }), d3.max(dataset, function (d) { return d.avgTemp; })])
+                .range([h - padding, padding]);
+
+            var colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+            var line = d3.line()
+                .x(function (d) { return xScale(d.year); })
+                .y(function (d) { return yScale(d.avgTemp); });
+
+            // Add Axis to the chart
+            var xAxis = d3.axisBottom()
+                .scale(xScale)
+                .tickFormat(d3.format("d"));
+
+            var yAxis = d3.axisLeft()
+                .scale(yScale);
+
+            svg.append("g")
+                .attr("transform", "translate(0," + (h - padding) + ")")
+                .call(xAxis);
+
+            svg.append("g")
+                .attr("transform", "translate(" + padding + ",0)")
+                .call(yAxis);
+
+            // Add lines to the graphic for each country in the dataset
+            svg.selectAll('.country-line')
+                .data(climcountries)
+                .enter()
+                .append('path')
+                .attr('class', 'country-line')
+                .attr('d', function (country) {
+                    var countryData = dataset.filter(function (d) { return d.Country === country; });
+                    return line(countryData);
+                })
+                .style('stroke', function (d, i) { return colorScale(i); })
+                .style('stroke-width', '2')
+                .style('fill', 'none');
+
+            // Add legend
+            var legend = svg.append("g")
+                .attr("class", "legend")
+                .attr("transform", "translate(20," + (h - 30) + ")");
+
+            legend.selectAll("rect")
+                .data(climcountries)
+                .enter()
+                .append("rect")
+                .attr("x", function (d, i) { return i * 100; })
+                .attr("y", 0)
+                .attr("width", 10)
+                .attr("height", 10)
+                .style("fill", function (d, i) { return colorScale(i); });
+
+            legend.selectAll("text")
+                .data(climcountries)
+                .enter()
+                .append("text")
+                .attr("x", function (d, i) { return i * 100 + 15; })
+                .attr("y", 10)
+                .text(function (d) { return d; })
+                .attr("dy", "0.7em")
+                .style("font-size", "10px");
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
